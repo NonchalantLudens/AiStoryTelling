@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from .. import modules as _builtin_modules  # noqa: F401  触发适配器注册
 from ..core.adapters import create
 from ..core.jobs import JobManager
 
