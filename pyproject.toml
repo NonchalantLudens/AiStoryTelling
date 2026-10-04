@@ -1,0 +1,18 @@
+[project]
+name = "storyteller"
+version = "0.1.0"
+description = "故事文本 -> TTS + 循环氛围视频 -> 讲故事视频"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "edge-tts>=6.1",
+    "requests>=2.31",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[tool.pytest.ini_options]
+markers = ["integration: 需要 ffmpeg/网络的集成测试"]

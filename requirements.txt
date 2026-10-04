@@ -1,0 +1,6 @@
+-r dev-requirements.txt
+fastapi>=0.110
+uvicorn>=0.29
+edge-tts>=6.1
+requests>=2.31
+pyyaml>=6.0

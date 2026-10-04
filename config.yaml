@@ -1,0 +1,26 @@
+# 模块选择与参数，各适配器实现可独立替换
+tts:
+  name: edge            # edge | gpt_sovits
+  voice: zh-CN-YunxiNeural
+  rate: "+0%"
+  # gpt_sovits 参数：
+  # base_url: http://127.0.0.1:9880
+  # ref_audio_path: ""
+  # prompt_text: ""
+
+visual:
+  name: loop_video      # loop_video | still_slideshow
+  assets_dir: assets/loops
+  default_theme: campfire
+
+composer:
+  name: ffmpeg
+  bgm: null             # BGM 音频路径，null 不加
+  bgm_volume: 0.2
+  embed_srt: false
+
+output:
+  width: 1280
+  height: 720
+  fps: 30
+  dir: outputs
