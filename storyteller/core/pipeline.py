@@ -1,5 +1,6 @@
 """管线编排：切分 -> TTS -> 画面 -> 合成。"""
 import json
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
@@ -98,11 +99,23 @@ def run_pipeline(
     total = len(segments)
     report("tts", 0, total)
 
+    def _synthesize_with_retry(text: str, audio: Path, attempts: int = 3) -> float:
+        last: Exception | None = None
+        for i in range(attempts):
+            try:
+                return tts.synthesize(text, audio)
+            except Exception as exc:  # edge-tts 等偶发空响应/网络抖动
+                last = exc
+                if audio.exists():
+                    audio.unlink(missing_ok=True)
+                time.sleep(1.0 * (i + 1))
+        raise last  # type: ignore[misc]
+
     timeline: list[TimelineItem] = []
     durations: list[float] = []
     for i, seg in enumerate(segments):
         audio = workdir / f"seg_{i:03d}.mp3"
-        duration = tts.synthesize(seg, audio)
+        duration = _synthesize_with_retry(seg, audio)
         clip = workdir / f"vis_{i:03d}.mp4"
         visual.resolve(options.theme, duration, clip)
         timeline.append(TimelineItem(audio=audio, visual=clip, text=seg, duration=duration))

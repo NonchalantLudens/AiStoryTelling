@@ -9,8 +9,9 @@ class Fake:
 
 
 def test_register_and_create():
-    adapters.register("tts", "fake", Fake)
-    obj = adapters.create("tts", "fake", a=1)
+    # 名字用独立前缀，避免与其它测试注册的 "fake" 适配器冲突（注册表全局共享）
+    adapters.register("tts", "probe_only", Fake)
+    obj = adapters.create("tts", "probe_only", a=1)
     assert isinstance(obj, Fake) and obj.a == 1
 
 
@@ -20,6 +21,5 @@ def test_unknown_kind_raises():
 
 
 def test_unknown_name_raises():
-    adapters.register("tts", "fake2", Fake)
     with pytest.raises(ValueError, match="未注册的适配器"):
         adapters.create("tts", "nope")
