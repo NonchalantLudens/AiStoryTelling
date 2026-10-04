@@ -19,6 +19,7 @@ def client(tmp_path):
         "output": {"width": 1280, "height": 720, "fps": 30, "dir": "outputs"},
     }
     (tmp_path / "loops" / "campfire").mkdir(parents=True)
+    (tmp_path / "loops" / "campfire" / "a.mp4").write_bytes(b"stub")
     app = create_app(config, tmp_path)
     return TestClient(app)
 
