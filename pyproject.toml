@@ -15,5 +15,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "httpx>=0.27"]
 
+[tool.setuptools.packages.find]
+include = ["storyteller*"]
+
 [tool.pytest.ini_options]
 markers = ["integration: 需要 ffmpeg/网络的集成测试"]

@@ -203,7 +203,7 @@ async function api(url, opts) {
 $('btnSplit').onclick = async () => {
   const text = $('story').value;
   if (!text.trim()) return toast('请先粘贴故事文本');
-  const d = await api('/api/preview/split', {
+  const d = await api('api/preview/split', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text})
   });
   state.segments = d.segments;
@@ -224,13 +224,13 @@ async function previewSeg(i) {
   const btn = $('btn-' + i);
   btn.disabled = true; btn.textContent = '…';
   try {
-    const d = await api('/api/preview/tts', {
+    const d = await api('api/preview/tts', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ text: state.segments[i], ...ttsPayload() })
     });
     state.durations[i] = d.duration;
     const au = $('au-' + i);
-    au.src = d.url; au.style.display = 'block'; au.play();
+    au.src = d.url.replace(/^\//, ""); au.style.display = 'block'; au.play();
     $('dur-' + i).textContent = d.duration.toFixed(1) + 's';
     btn.textContent = '▶ 重听';
   } catch (e) { toast('试听失败：' + e.message); btn.textContent = '▶ 试听'; }
@@ -240,7 +240,7 @@ window.previewSeg = previewSeg;
 
 /* ---- 步骤 2：配音配置 ---- */
 async function initEngines() {
-  const d = await api('/api/engines');
+  const d = await api('api/engines');
   $('engine').innerHTML = d.tts.map(x => `<option value="${x}">${x}</option>`).join('');
   $('engineInfo').textContent = `TTS: ${d.tts.join('/')} · 画面: ${d.visual.join('/')}`;
   $('engine').onchange = onEngineChange;
@@ -269,15 +269,15 @@ $('rate').oninput = () => {
 
 /* ---- 步骤 3：画面主题 ---- */
 async function initThemes() {
-  const assets = await api('/api/assets');
+  const assets = await api('api/assets');
   state.themes = assets;
-  const def = (await api('/api/themes')).default;
+  const def = (await api('api/themes')).default;
   state.defaultTheme = def;
   const names = Object.keys(assets);
   $('themes').innerHTML = names.length ? names.map(t => {
     const f = assets[t][0];
     return `<div class="theme${t === def ? ' sel' : ''}" data-t="${t}" onclick="pickTheme('${t}')">
-      <video muted loop preload="metadata" src="/assets/loops/${t}/${f}"></video>
+      <video muted loop preload="metadata" src="assets/loops/${t}/${f}"></video>
       <div class="name"><b>${t}</b><small>${assets[t].length} 个素材</small></div>
     </div>`;
   }).join('') : '<small>assets/loops 下还没有素材，先跑 bash scripts/fetch_loops.sh 或上传。</small>';
@@ -297,7 +297,7 @@ $('btnUpload').onclick = async () => {
   if (!theme || !file) return toast('填写主题名并选择文件');
   const fd = new FormData(); fd.append('theme', theme); fd.append('file', file);
   try {
-    await api('/api/assets/upload', { method: 'POST', body: fd });
+    await api('api/assets/upload', { method: 'POST', body: fd });
     $('upTheme').value = ''; $('upFile').value = '';
     await initThemes(); pickTheme(theme);
   } catch (e) { toast('上传失败：' + e.message); }
@@ -320,7 +320,7 @@ async function submitJob() {
   const text = $('story').value;
   if (!text.trim()) { toast('请先粘贴故事文本'); return false; }
   try {
-    await api('/api/jobs', {
+    await api('api/jobs', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ text, overrides: overrides() })
     });
@@ -335,7 +335,7 @@ $('runAll').onclick = submitJob;
 let pollTimer = null;
 async function refreshJobs() {
   let jobs = [];
-  try { jobs = await api('/api/jobs'); } catch { return jobs; }
+  try { jobs = await api('api/jobs'); } catch { return jobs; }
   const box = $('jobs');
   box.innerHTML = jobs.length ? '' : '<small>还没有任务。</small>';
   for (const j of jobs) {
@@ -348,9 +348,9 @@ async function refreshJobs() {
       <small>${j.stage || ''} ${j.error ? ' · ' + j.error : ''}</small>`;
     if (j.status === 'done' && j.output) {
       const rel = j.output.split('outputs/').pop();
-      body += `<video class="result" controls preload="metadata" src="/outputs/${rel}"></video>
-        <a href="/outputs/${rel}" download>下载视频</a>` +
-        (j.srt ? `<a href="/outputs/${rel.replace(/\.mp4$/, '.srt')}">字幕</a>` : '');
+      body += `<video class="result" controls preload="metadata" src="outputs/${rel}"></video>
+        <a href="outputs/${rel}" download>下载视频</a>` +
+        (j.srt ? `<a href="outputs/${rel.replace(/\.mp4$/, '.srt')}">字幕</a>` : '');
     }
     el.innerHTML = body;
     box.appendChild(el);
