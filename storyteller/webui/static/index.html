@@ -1,1 +1,143 @@
-<h1>Storyteller</h1>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Storyteller</title>
+<style>
+  :root {
+    --bg: #12141a; --panel: #1b1e27; --border: #2a2e3b;
+    --text: #e6e8ef; --dim: #8a90a3; --accent: #6c8cff;
+    --ok: #4fc380; --err: #ff6c6c; --warn: #ffc86c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex; min-height: 100vh;
+  }
+  .pane { padding: 24px; }
+  .left { width: 40%; border-right: 1px solid var(--border); }
+  .right { flex: 1; }
+  h1 { font-size: 20px; margin: 0 0 16px; color: var(--accent); }
+  label { display: block; font-size: 13px; color: var(--dim); margin: 12px 0 4px; }
+  textarea {
+    width: 100%; min-height: 260px; background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+    font-size: 14px; line-height: 1.6; resize: vertical;
+  }
+  select, button {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 14px;
+  }
+  button {
+    width: 100%; margin-top: 16px; background: var(--accent); color: #fff;
+    border: none; cursor: pointer; font-weight: 600; padding: 12px;
+  }
+  button:hover { filter: brightness(1.1); }
+  .row { display: flex; gap: 12px; align-items: center; }
+  .job {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 12px;
+  }
+  .badge {
+    font-size: 12px; padding: 2px 8px; border-radius: 99px; margin-left: 8px;
+  }
+  .badge.done { background: var(--ok); color: #08130c; }
+  .badge.failed { background: var(--err); color: #fff; }
+  .badge.running { background: var(--warn); color: #241a00; }
+  .badge.queued { background: var(--border); color: var(--dim); }
+  .bar {
+    height: 6px; background: var(--border); border-radius: 4px; margin: 10px 0 6px; overflow: hidden;
+  }
+  .bar > div { height: 100%; background: var(--accent); transition: width .4s; }
+  small { color: var(--dim); }
+  video { width: 100%; max-width: 560px; border-radius: 8px; margin-top: 10px; display: block; }
+  a { color: var(--accent); text-decoration: none; margin-right: 12px; }
+  .checkbox { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <div class="pane left">
+    <h1>Storyteller · 讲故事视频生成</h1>
+    <label>故事文本（空行分段，每段一次画面切换）</label>
+    <textarea id="story" placeholder="在这里粘贴故事……"></textarea>
+    <label>画面主题</label>
+    <div class="row">
+      <select id="theme"></select>
+    </div>
+    <div class="checkbox">
+      <input type="checkbox" id="srt" checked>
+      <label for="srt" style="margin:0">生成字幕（srt）</label>
+    </div>
+    <button id="generate">生成视频</button>
+  </div>
+  <div class="pane right">
+    <h1>任务</h1>
+    <div id="jobs"></div>
+  </div>
+<script>
+let pollTimer = null;
+
+async function refresh() {
+  let jobs = [];
+  try { jobs = await (await fetch('/api/jobs')).json(); } catch { return jobs; }
+  const box = document.getElementById('jobs');
+  box.innerHTML = jobs.length ? '' : '<small>还没有任务，左侧粘贴文本开始。</small>';
+  for (const j of jobs) {
+    const el = document.createElement('div');
+    el.className = 'job';
+    const pct = j.total ? Math.round(100 * j.progress / j.total) : 0;
+    let body = `<b>${j.id}</b><span class="badge ${j.status}">${j.status}</span>
+      <small style="float:right">${j.created_at || ''}</small>
+      <div class="bar"><div style="width:${pct}%"></div></div>
+      <small>${j.stage || ''} ${j.error ? ' · ' + j.error : ''}</small>`;
+    if (j.status === 'done' && j.output) {
+      const rel = j.output.split('/outputs/')[1] || j.output;
+      body += `<video controls src="/outputs/${rel}"></video>
+        <a href="/outputs/${rel}" download>下载视频</a>
+        <a href="/outputs/${rel.replace(/\.mp4$/, '.srt')}">字幕</a>`;
+    }
+    el.innerHTML = body;
+    box.appendChild(el);
+  }
+  return jobs;
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    const jobs = await refresh();
+    if (!jobs.some(j => j.status === 'running' || j.status === 'queued')) {
+      clearInterval(pollTimer); pollTimer = null;
+    }
+  }, 2000);
+}
+
+async function initThemes() {
+  const sel = document.getElementById('theme');
+  try {
+    const t = await (await fetch('/api/themes')).json();
+    sel.innerHTML = (t.themes.length ? t.themes : [t.default])
+      .map(x => `<option value="${x}"${x === t.default ? ' selected' : ''}>${x}</option>`).join('');
+  } catch { sel.innerHTML = '<option value="campfire">campfire</option>'; }
+}
+
+document.getElementById('generate').onclick = async () => {
+  const text = document.getElementById('story').value;
+  if (!text.trim()) return alert('请先粘贴故事文本');
+  const overrides = { theme: document.getElementById('theme').value };
+  if (!document.getElementById('srt').checked) overrides.embed_srt = false;
+  const r = await fetch('/api/jobs', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, overrides }),
+  });
+  if (!r.ok) { alert((await r.json()).detail || '提交失败'); return; }
+  refresh(); startPolling();
+};
+
+initThemes();
+refresh().then(jobs => { if (jobs.some(j => j.status === 'running' || j.status === 'queued')) startPolling(); });
+</script>
+</body>
+</html>
