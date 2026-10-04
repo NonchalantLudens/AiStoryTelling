@@ -75,6 +75,7 @@ class JobManager:
         job.update(status="running", stage="init")
         self._save()
         workdir = self.outputs_dir / jid
+        workdir.mkdir(parents=True, exist_ok=True)
 
         def on_progress(stage: str, done: int, total: int) -> None:
             job.update(stage=stage, progress=done, total=total)
