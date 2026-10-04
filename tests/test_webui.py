@@ -3,13 +3,14 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
+from storyteller.core import adapters
 from storyteller.webui.app import create_app
 
 
 @pytest.fixture
 def client(tmp_path):
     config = {
-        "tts": {"name": "edge"},
+        "tts": {"name": "stub_tts", "voice": "default-v"},
         "visual": {
             "name": "loop_video",
             "assets_dir": tmp_path / "loops",
@@ -20,8 +21,23 @@ def client(tmp_path):
     }
     (tmp_path / "loops" / "campfire").mkdir(parents=True)
     (tmp_path / "loops" / "campfire" / "a.mp4").write_bytes(b"stub")
-    app = create_app(config, tmp_path)
-    return TestClient(app)
+    return TestClient(create_app(config, tmp_path))
+
+
+class FakeTTS:
+    name = "fake"
+    calls = 0
+
+    def __init__(self, **opts):
+        self.opts = opts
+
+    def synthesize(self, text: str, out_path) -> float:
+        FakeTTS.calls += 1
+        out_path.write_text("audio")
+        return 1.5
+
+
+adapters.register("tts", "stub_tts", FakeTTS)
 
 
 def test_submit_and_poll(client):
@@ -36,7 +52,7 @@ def test_submit_and_poll(client):
         if job["status"] in ("done", "failed"):
             break
         time.sleep(0.05)
-    # edge 真跑，可能因网络环境失败，断言只要求终态
+    # fake 管线链路不完整时任务会 failed，断言只要求终态
     assert client.get(f"/api/jobs/{jid}").json()["status"] in ("done", "failed")
     assert any(j["id"] == jid for j in client.get("/api/jobs").json())
 
@@ -50,3 +66,63 @@ def test_themes(client):
     data = client.get("/api/themes").json()
     assert data["default"] == "campfire"
     assert data["themes"] == ["campfire"]
+
+
+def test_engines_lists_registered(client):
+    data = client.get("/api/engines").json()
+    assert "stub_tts" in data["tts"]
+    assert "edge" in data["tts"]
+    assert "loop_video" in data["visual"]
+
+
+def test_preview_split(client):
+    r = client.post("/api/preview/split", json={"text": "一段。\n\n二段。"})
+    assert r.json()["segments"] == ["一段。", "二段。"]
+
+
+def test_preview_tts_and_cache(client):
+    FakeTTS.calls = 0
+    r1 = client.post(
+        "/api/preview/tts", json={"text": "你好", "engine": "stub_tts", "voice": "v1"}
+    )
+    assert r1.status_code == 200
+    data1 = r1.json()
+    assert data1["url"].startswith("/preview/") and data1["duration"] == 1.5
+    r2 = client.post(
+        "/api/preview/tts", json={"text": "你好", "engine": "stub_tts", "voice": "v1"}
+    )
+    assert r2.json()["url"] == data1["url"]
+    assert FakeTTS.calls == 1  # 第二次命中缓存
+    r3 = client.post(
+        "/api/preview/tts", json={"text": "你好", "engine": "stub_tts", "voice": "v2"}
+    )
+    assert r3.json()["url"] != data1["url"]
+    assert FakeTTS.calls == 2
+    # 引擎默认参数来自 config.tts（voice=default-v），请求里没给也行
+    r4 = client.post("/api/preview/tts", json={"text": "默认参数", "engine": "stub_tts"})
+    assert r4.status_code == 200
+
+
+def test_preview_tts_empty_text(client):
+    assert client.post("/api/preview/tts", json={"text": " "}).status_code == 400
+
+
+def test_upload_asset(client):
+    r = client.post(
+        "/api/assets/upload",
+        data={"theme": "space"},
+        files={"file": ("nebula.mp4", b"video-bytes", "video/mp4")},
+    )
+    assert r.status_code == 200
+    assets = client.get("/api/assets").json()
+    assert assets["space"] == ["nebula.mp4"]
+    assert client.get("/assets/loops/space/nebula.mp4").status_code == 200
+
+
+def test_upload_bad_theme_rejected(client):
+    r = client.post(
+        "/api/assets/upload",
+        data={"theme": "../evil"},
+        files={"file": ("x.mp4", b"x", "video/mp4")},
+    )
+    assert r.status_code == 400

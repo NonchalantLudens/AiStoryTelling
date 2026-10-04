@@ -11,7 +11,7 @@ tts:
 visual:
   name: loop_video      # loop_video | still_slideshow
   assets_dir: assets/loops
-  default_theme: campfire
+  default_theme: night
 
 composer:
   name: ffmpeg

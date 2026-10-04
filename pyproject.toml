@@ -9,6 +9,7 @@ dependencies = [
     "edge-tts>=6.1",
     "requests>=2.31",
     "pyyaml>=6.0",
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]

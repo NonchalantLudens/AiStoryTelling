@@ -15,7 +15,7 @@ ProgressFn = Callable[[str, int, int], None]
 
 @dataclass
 class PipelineOptions:
-    theme: str = "campfire"
+    theme: str = "night"
     tts_name: str = "edge"
     tts_opts: dict = field(default_factory=dict)
     visual_name: str = "loop_video"
@@ -38,7 +38,7 @@ class PipelineOptions:
         c = cfg.get("composer", {})
         bgm = c.get("bgm")
         opts = cls(
-            theme=v.get("default_theme", "campfire"),
+            theme=v.get("default_theme", "night"),
             tts_name=t.get("name", "edge"),
             tts_opts={k: val for k, val in t.items() if k != "name"},
             visual_name=v.get("name", "loop_video"),
@@ -60,7 +60,13 @@ class PipelineOptions:
         opts.composer_opts.setdefault("bgm_volume", c.get("bgm_volume", 0.2))
         if overrides:
             for key, val in overrides.items():
-                if hasattr(opts, key):
+                if (
+                    key in ("tts_opts", "visual_opts", "composer_opts")
+                    and isinstance(val, dict)
+                    and isinstance(getattr(opts, key, None), dict)
+                ):
+                    getattr(opts, key).update(val)  # 合并，保住配置文件默认值
+                elif hasattr(opts, key):
                     setattr(opts, key, val)
         return opts
 

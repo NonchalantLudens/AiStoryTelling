@@ -12,6 +12,10 @@ def register(kind: str, name: str, cls: type) -> None:
     _REGISTRY.setdefault(kind, {})[name] = cls
 
 
+def available(kind: str) -> list[str]:
+    return sorted(_REGISTRY.get(kind, {}))
+
+
 def create(kind: str, name: str, **opts: Any) -> Any:
     if kind not in _REGISTRY:
         raise ValueError(f"未知模块类型: {kind}")
