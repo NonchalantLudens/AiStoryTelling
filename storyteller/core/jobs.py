@@ -2,6 +2,7 @@
 import json
 import os
 import queue
+import shutil
 import threading
 import uuid
 from datetime import datetime
@@ -100,6 +101,17 @@ class JobManager:
 
     def list_jobs(self) -> list[dict]:
         return sorted(self._jobs.values(), key=lambda j: j["created_at"], reverse=True)
+
+    def remove(self, job_id: str) -> bool:
+        """删除任务记录与产物目录；运行中的任务不可删。"""
+        job = self._jobs.get(job_id)
+        if not job or job["status"] == "running":
+            return False
+        with self._lock:
+            self._jobs.pop(job_id, None)
+        self._save()
+        shutil.rmtree(self.outputs_dir / job_id, ignore_errors=True)
+        return True
 
     # ---- worker ----
     def _loop(self) -> None:

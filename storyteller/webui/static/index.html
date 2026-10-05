@@ -104,6 +104,18 @@
   }
   .sttjob .txt.open { display: block; }
   .jobs { margin-top: 8px; }
+  .section-title {
+    color: var(--dim); font-size: 12px; font-weight: 600;
+    margin: 12px 0 8px; text-transform: uppercase; letter-spacing: .05em;
+  }
+  .del { color: var(--dim); cursor: pointer; margin-left: 8px; font-size: 12px; }
+  .del:hover { color: var(--err); }
+  .chips { padding: 0 10px 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    background: var(--border); border-radius: 99px; padding: 2px 8px; font-size: 11px;
+    display: inline-flex; align-items: center; gap: 4px; color: var(--text);
+  }
+  .chip .del { margin-left: 0; }
   .job {
     background: var(--panel2); border: 1px solid var(--border);
     border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
@@ -161,14 +173,7 @@
       </div>
       <div id="edgeFields">
         <label class="f">音色</label>
-        <input type="text" id="voice" list="voiceList" value="zh-CN-YunxiNeural">
-        <datalist id="voiceList">
-          <option value="zh-CN-YunxiNeural">云希（男·自然）</option>
-          <option value="zh-CN-YunyangNeural">云扬（男·新闻）</option>
-          <option value="zh-CN-XiaoxiaoNeural">晓晓（女·温暖）</option>
-          <option value="zh-CN-XiaoyiNeural">晓伊（女·活泼）</option>
-          <option value="zh-CN-liaoning-XiaobeiNeural">晓北（女·东北）</option>
-        </datalist>
+        <select id="voice"></select>
       </div>
       <div>
         <label class="f">语速 <span id="rateVal">+0%</span></label>
@@ -300,6 +305,32 @@ async function hearAll() {
 $('btnHearAll').onclick = () => hearAll().catch(e => toast(e.message));
 
 /* ---- 步骤 2：配音配置 ---- */
+const VOICE_LABELS = {
+  'zh-CN-YunyeNeural': '纪录片/历史解说 ★',
+  'zh-CN-YunyangNeural': '新闻播报',
+  'zh-CN-YunjianNeural': '浑厚解说',
+  'zh-CN-YunxiNeural': '自然对话',
+  'zh-CN-YunzeNeural': '成熟温暖',
+  'zh-CN-YunhaoNeural': '磁性',
+  'zh-CN-XiaoxiaoNeural': '温暖通用',
+  'zh-CN-XiaoyiNeural': '活泼明快',
+  'zh-CN-XiaomoNeural': '冷静解说',
+  'zh-CN-XiaoruiNeural': '平静',
+  'zh-CN-liaoning-XiaobeiNeural': '东北口音',
+  'zh-CN-shaanxi-XiaoniNeural': '陕西口音',
+};
+async function initVoices() {
+  let voices = [];
+  try { voices = (await api('api/voices')).voices; } catch {}
+  if (!voices.length) voices = [{short_name:'zh-CN-YunxiNeural', gender:'男', desc:'默认'}];
+  voices.sort((a, b) =>
+    (VOICE_LABELS[a.short_name] ? 0 : 1) - (VOICE_LABELS[b.short_name] ? 0 : 1)
+    || a.short_name.localeCompare(b.short_name));
+  $('voice').innerHTML = voices.map(v => {
+    const label = VOICE_LABELS[v.short_name] || v.desc || '';
+    return `<option value="${v.short_name}"${v.short_name === 'zh-CN-YunxiNeural' ? ' selected' : ''}>${v.gender} · ${v.short_name}${label ? '（' + label + '）' : ''}</option>`;
+  }).join('');
+}
 async function initEngines() {
   const d = await api('api/engines');
   $('engine').innerHTML = d.tts.map(x => `<option value="${x}">${x}</option>`).join('');
@@ -336,9 +367,13 @@ async function initThemes() {
   const names = Object.keys(assets);
   $('themes').innerHTML = names.length ? names.map(t => {
     const f = assets[t][0];
+    const chips = assets[t].map(x =>
+      `<span class="chip">${x}<a class="del" onclick="event.stopPropagation(); delAsset('${t}','${x}')">✕</a></span>`
+    ).join('');
     return `<div class="theme${t === def ? ' sel' : ''}" data-t="${t}" onclick="pickTheme('${t}')">
       <video muted loop preload="metadata" src="assets/loops/${t}/${f}"></video>
       <div class="name"><b>${t}</b><small>${assets[t].length} 个素材</small></div>
+      <div class="chips">${chips}</div>
     </div>`;
   }).join('') : '<small>assets/loops 下还没有素材，先跑 bash scripts/fetch_loops.sh 或上传。</small>';
   document.querySelectorAll('.theme video').forEach(v => v.play().catch(() => {}));
@@ -347,6 +382,14 @@ function pickTheme(t) {
   document.querySelectorAll('.theme').forEach(el => el.classList.toggle('sel', el.dataset.t === t));
 }
 window.pickTheme = pickTheme;
+async function delAsset(theme, file) {
+  if (!confirm(`删除素材 ${theme}/${file}？该操作不可恢复。`)) return;
+  try {
+    await api(`api/assets/${theme}/${file}`, { method: 'DELETE' });
+    await initThemes();
+  } catch (e) { toast('删除失败：' + e.message); }
+}
+window.delAsset = delAsset;
 function currentTheme() {
   const sel = document.querySelector('.theme.sel');
   return sel ? sel.dataset.t : state.defaultTheme;
@@ -415,39 +458,61 @@ async function refreshJobs() {
   let jobs = [];
   try { jobs = await api('api/jobs'); } catch { return jobs; }
   const box = $('jobs');
+  const active = jobs.filter(j => j.status !== 'done');
+  const done = jobs.filter(j => j.status === 'done');
   box.innerHTML = jobs.length ? '' : '<small>还没有任务。</small>';
-  for (const j of jobs) {
-    const el = document.createElement('div');
-    el.className = 'job';
-    const pct = j.total ? Math.round(100 * j.progress / j.total) : 0;
-    const expanded = expandedJobId === j.id;
-    // 头部：始终可见，点击切换展开
-    let body = `<div class="jobhead" onclick="toggleJob('${j.id}')">
-      <b>${j.id}</b><span class="badge ${j.status}">${j.status}</span>
-      <small style="float:right">${j.created_at || ''} ${expanded ? '▾' : '▸'}</small>
-      <div class="bar"><div style="width:${pct}%"></div></div>
-      <small>${j.stage || ''} ${j.status === 'failed' && j.error ? ' · ' + j.error : ''}</small>
-    </div>`;
-    // 展开区：仅选中项渲染
-    if (expanded) {
-      if (j.status === 'running' || j.status === 'queued') {
-        body += `<div style="margin-top:8px"><button class="btn small" onclick="cancelJob('${j.id}')">取消</button></div>`;
-      }
-      if (j.status === 'done' && j.output) {
-        const rel = j.output.split('outputs/').pop();
-        body += `<video class="result" controls preload="metadata" src="outputs/${rel}"></video>
-          <a href="outputs/${rel}" download>下载视频</a>` +
-          (j.srt ? `<a href="outputs/${rel.replace(/\.mp4$/, '.srt')}">字幕</a>` : '');
-      }
-      if (j.status !== 'done' && j.error) {
-        body += `<div class="txt" style="margin-top:8px">${j.error}</div>`;
-      }
-    }
-    el.innerHTML = body;
-    box.appendChild(el);
-  }
+  const section = (title, list) => {
+    if (!list.length) return;
+    const h = document.createElement('div');
+    h.className = 'section-title';
+    h.textContent = title;
+    box.appendChild(h);
+    for (const j of list) box.appendChild(jobCard(j));
+  };
+  section(`未完成（${active.length}）`, active);
+  section(`已完成（${done.length}）`, done);
   return jobs;
 }
+function jobCard(j) {
+  const el = document.createElement('div');
+  el.className = 'job';
+  const pct = j.total ? Math.round(100 * j.progress / j.total) : 0;
+  const expanded = expandedJobId === j.id;
+  // 头部：始终可见，点击切换展开
+  let body = `<div class="jobhead" onclick="toggleJob('${j.id}')">
+    <b>${j.id}</b><span class="badge ${j.status}">${j.status}</span>
+    <span class="del" title="删除任务" onclick="event.stopPropagation(); delJob('${j.id}')">✕</span>
+    <small style="float:right">${j.created_at || ''} ${expanded ? '▾' : '▸'}</small>
+    <div class="bar"><div style="width:${pct}%"></div></div>
+    <small>${j.stage || ''} ${j.status === 'failed' && j.error ? ' · ' + j.error : ''}</small>
+  </div>`;
+  // 展开区：仅选中项渲染
+  if (expanded) {
+    if (j.status === 'running' || j.status === 'queued') {
+      body += `<div style="margin-top:8px"><button class="btn small" onclick="cancelJob('${j.id}')">取消</button></div>`;
+    }
+    if (j.status === 'done' && j.output) {
+      const rel = j.output.split('outputs/').pop();
+      body += `<video class="result" controls preload="metadata" src="outputs/${rel}"></video>
+        <a href="outputs/${rel}" download>下载视频</a>` +
+        (j.srt ? `<a href="outputs/${rel.replace(/\.mp4$/, '.srt')}">字幕</a>` : '');
+    }
+    if (j.status !== 'done' && j.error) {
+      body += `<div class="txt" style="margin-top:8px">${j.error}</div>`;
+    }
+  }
+  el.innerHTML = body;
+  return el;
+}
+async function delJob(id) {
+  if (!confirm(`删除任务 ${id}？其产物视频与目录将一并删除，不可恢复。`)) return;
+  try {
+    await api(`api/jobs/${id}`, { method: 'DELETE' });
+    if (expandedJobId === id) expandedJobId = null;
+    refreshJobs();
+  } catch (e) { toast('删除失败：' + e.message); }
+}
+window.delJob = delJob;
 function toggleJob(id) {
   expandedJobId = expandedJobId === id ? null : id;
   refreshJobs();
@@ -499,6 +564,7 @@ async function refreshSttJobs() {
     const el = document.createElement('div');
     el.className = 'sttjob';
     let body = `<b>${j.filename}</b><span class="badge ${j.status}">${j.status}</span>
+      <span class="del" title="删除" onclick="delStt('${j.id}')">✕</span>
       <small style="float:right">${j.created_at || ''}</small>`;
     if (j.text) body += `<div class="txt" id="stt-txt-${j.id}" onclick="toggleSttText('${j.id}')">${j.text}</div>`;
     if (j.gen_job_id) body += `<small>已入队生成任务 <b>${j.gen_job_id}</b>（见下方任务列表）</small>`;
@@ -518,6 +584,14 @@ async function cancelStt(id) {
   } catch (e) { toast('取消失败：' + e.message); }
 }
 window.cancelStt = cancelStt;
+async function delStt(id) {
+  if (!confirm('删除该提取任务？已上传的媒体文件将一并删除，不可恢复。')) return;
+  try {
+    await api(`api/stt/jobs/${id}`, { method: 'DELETE' });
+    refreshSttJobs();
+  } catch (e) { toast('删除失败：' + e.message); }
+}
+window.delStt = delStt;
 
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
@@ -532,6 +606,7 @@ function startPolling() {
 }
 
 initEngines();
+initVoices();
 initThemes();
 refreshJobs().then(jobs => {
   refreshSttJobs().then(stt => {

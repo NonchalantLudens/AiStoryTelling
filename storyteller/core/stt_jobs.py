@@ -122,6 +122,19 @@ class STTJobManager:
     def list_jobs(self) -> list[dict]:
         return sorted(self._jobs.values(), key=lambda j: j["created_at"], reverse=True)
 
+    def remove(self, job_id: str) -> bool:
+        """删除提取任务记录与已上传的媒体文件；转写中的任务不可删。"""
+        job = self._jobs.get(job_id)
+        if not job or job["status"] == "transcribing":
+            return False
+        with self._lock:
+            self._jobs.pop(job_id, None)
+        self._save()
+        media = Path(job.get("path", ""))
+        if media.parent.name == "stt_uploads":
+            media.unlink(missing_ok=True)
+        return True
+
     # ---- worker ----
     def _loop(self) -> None:
         while True:

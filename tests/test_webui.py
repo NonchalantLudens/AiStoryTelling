@@ -226,3 +226,45 @@ def test_upload_bad_theme_rejected(client):
         files={"file": ("x.mp4", b"x", "video/mp4")},
     )
     assert r.status_code == 400
+
+
+def test_delete_asset_and_theme_cleanup(client):
+    client.post(
+        "/api/assets/upload",
+        data={"theme": "temp"},
+        files={"file": ("t.mp4", b"x", "video/mp4")},
+    )
+    assert "temp" in client.get("/api/assets").json()
+    assert client.delete("/api/assets/temp/t.mp4").status_code == 200
+    # 目录随之清理
+    assert "temp" not in client.get("/api/assets").json()
+    assert client.delete("/api/assets/temp/t.mp4").status_code == 404
+
+
+def test_delete_job(tmp_path):
+    import time as _t
+
+    config = {
+        "tts": {"name": "stub_tts"},
+        "visual": {"name": "loop_video", "assets_dir": tmp_path / "loops", "default_theme": "night"},
+        "composer": {"name": "ffmpeg"},
+        "output": {"width": 1280, "height": 720, "fps": 30, "dir": "outputs"},
+    }
+    c = TestClient(create_app(config, tmp_path))
+    r = c.post("/api/jobs", json={"text": "x"})
+    jid = r.json()["id"]
+    deadline = _t.time() + 10
+    while _t.time() < deadline:
+        if c.get(f"/api/jobs/{jid}").json()["status"] not in ("queued", "running"):
+            break
+        _t.sleep(0.05)
+    # 任务目录存在，删除后消失
+    assert c.delete(f"/api/jobs/{jid}").status_code == 200
+    assert c.get(f"/api/jobs/{jid}").status_code == 404
+    assert c.delete(f"/api/jobs/{jid}").status_code == 400
+
+
+def test_voices_endpoint(client):
+    data = client.get("/api/voices").json()
+    names = [v["short_name"] for v in data["voices"]]
+    assert any("Yunye" in n for n in names)  # 央视历史故事风格音色在列表里
