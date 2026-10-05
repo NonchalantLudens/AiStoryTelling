@@ -88,13 +88,7 @@
   .theme .name small { color: var(--dim); }
   .upload { margin-top: 12px; display: flex; gap: 10px; align-items: center; color: var(--dim); font-size: 12px; flex-wrap: wrap; }
   .checkbox { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--dim); }
-  .dropzone {
-    border: 2px dashed var(--border); border-radius: 10px; padding: 18px;
-    text-align: center; color: var(--dim); font-size: 13px;
-    display: flex; gap: 8px; align-items: center; justify-content: center;
-    transition: border-color .2s;
-  }
-  .dropzone.drag { border-color: var(--accent); color: var(--accent); }
+  .dropzone { display: none; }
   .sttjob {
     background: var(--panel2); border: 1px solid var(--border);
     border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px;
@@ -154,15 +148,13 @@
   <section class="step">
     <h2><span class="no">1</span>故事文本
       <span class="hint">空行分段；是否按段切换画面在第 3 步选</span></h2>
-    <textarea id="story" placeholder="在这里粘贴故事……"></textarea>
+    <textarea id="story" placeholder="粘贴故事，或直接拖入文件：txt/md 填入文本，音视频自动转写入队"></textarea>
     <div class="row" style="margin-top:10px">
       <button class="btn small" id="btnLoad">① 载入并切分</button>
       <small id="segInfo"></small>
-    </div>
-
-    <label class="f" style="margin-top:16px">从媒体文件提取（拖入音视频，自动转写并逐个入队生成）</label>
-    <div class="dropzone" id="dropZone">
-      拖拽音/视频文件到这里，或<input type="file" id="mediaFile" multiple accept="audio/*,video/*" style="display:none"><button class="btn small" onclick="document.getElementById('mediaFile').click()">选择文件</button>
+      <small style="margin-left:auto">拖入 txt/md → 填入文本 · 拖入音视频 → 转写入队</small>
+      <input type="file" id="mediaFile" multiple accept="audio/*,video/*" style="display:none">
+      <button class="btn small" onclick="document.getElementById('mediaFile').click()">选择媒体文件</button>
     </div>
     <div class="jobs" id="sttJobs"></div>
   </section>
@@ -537,13 +529,6 @@ async function cancelJob(id) {
 window.cancelJob = cancelJob;
 
 /* ---- 媒体提取（STT） ---- */
-const dz = $('dropZone');
-dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
-dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
-dz.addEventListener('drop', e => {
-  e.preventDefault(); dz.classList.remove('drag');
-  handleMediaFiles([...e.dataTransfer.files]);
-});
 $('mediaFile').addEventListener('change', e => handleMediaFiles([...e.target.files]));
 
 async function handleMediaFiles(files) {
@@ -565,16 +550,21 @@ function toggleSttText(id) {
 }
 window.toggleSttText = toggleSttText;
 
-/* ---- 文本框拖入 .txt/.md 文件 ---- */
+/* ---- 文本框统一拖入：txt/md 填文本，音视频走提取入队 ---- */
 const storyEl = $('story');
 storyEl.addEventListener('dragover', e => { e.preventDefault(); storyEl.classList.add('drag'); });
 storyEl.addEventListener('dragleave', () => storyEl.classList.remove('drag'));
 storyEl.addEventListener('drop', async e => {
-  e.preventDefault(); e.stopPropagation(); storyEl.classList.remove('drag');
-  const f = [...e.dataTransfer.files].find(f => /\.(txt|md)$/i.test(f.name));
-  if (!f) return;
-  storyEl.value = await f.text();
-  loadText().catch(err => toast(err.message));
+  e.preventDefault(); storyEl.classList.remove('drag');
+  const files = [...e.dataTransfer.files];
+  if (!files.length) return;
+  const texts = files.filter(f => /\.(txt|md)$/i.test(f.name));
+  const media = files.filter(f => /\.(mp3|wav|m4a|aac|flac|ogg|mp4|mov|mkv|webm|avi)$/i.test(f.name));
+  if (texts.length) {
+    storyEl.value = (await Promise.all(texts.map(f => f.text()))).join('\n\n');
+    loadText().catch(err => toast(err.message));
+  }
+  if (media.length) handleMediaFiles(media);
 });
 
 async function refreshSttJobs() {
