@@ -435,7 +435,7 @@ async function refreshJobs() {
   }
   return jobs;
 }
-async async function cancelJob(id) {
+async function cancelJob(id) {
   try {
     await api(`api/jobs/${id}/cancel`, { method: 'POST' });
     refreshJobs();
