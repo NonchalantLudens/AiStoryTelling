@@ -114,6 +114,8 @@
   .badge.running { background: var(--warn); color: #241a00; }
   .badge.queued { background: var(--border); color: var(--dim); }
   .bar { height: 5px; background: var(--border); border-radius: 4px; margin: 8px 0 6px; overflow: hidden; }
+  .jobhead { cursor: pointer; user-select: none; }
+  .jobhead:hover small { color: var(--text); }
   .bar > div { height: 100%; background: var(--accent); transition: width .4s; }
   small { color: var(--dim); }
   video.result, video.sample { width: 100%; max-width: 640px; border-radius: 9px; margin-top: 10px; display: block; }
@@ -406,8 +408,9 @@ async function submitJob() {
 $('btnCompose').onclick = submitJob;
 $('runAll').onclick = submitJob;
 
-/* ---- 任务列表 ---- */
+/* ---- 任务列表（手风琴：只展开选中的一项） ---- */
 let pollTimer = null;
+let expandedJobId = null;
 async function refreshJobs() {
   let jobs = [];
   try { jobs = await api('api/jobs'); } catch { return jobs; }
@@ -417,24 +420,39 @@ async function refreshJobs() {
     const el = document.createElement('div');
     el.className = 'job';
     const pct = j.total ? Math.round(100 * j.progress / j.total) : 0;
-    let body = `<b>${j.id}</b><span class="badge ${j.status}">${j.status}</span>
-      <small style="float:right">${j.created_at || ''}</small>
+    const expanded = expandedJobId === j.id;
+    // 头部：始终可见，点击切换展开
+    let body = `<div class="jobhead" onclick="toggleJob('${j.id}')">
+      <b>${j.id}</b><span class="badge ${j.status}">${j.status}</span>
+      <small style="float:right">${j.created_at || ''} ${expanded ? '▾' : '▸'}</small>
       <div class="bar"><div style="width:${pct}%"></div></div>
-      <small>${j.stage || ''} ${j.error ? ' · ' + j.error : ''}</small>`;
-    if (j.status === 'running' || j.status === 'queued') {
-      body += `<div style="margin-top:8px"><button class="btn small" onclick="cancelJob('${j.id}')">取消</button></div>`;
-    }
-    if (j.status === 'done' && j.output) {
-      const rel = j.output.split('outputs/').pop();
-      body += `<video class="result" controls preload="metadata" src="outputs/${rel}"></video>
-        <a href="outputs/${rel}" download>下载视频</a>` +
-        (j.srt ? `<a href="outputs/${rel.replace(/\.mp4$/, '.srt')}">字幕</a>` : '');
+      <small>${j.stage || ''} ${j.status === 'failed' && j.error ? ' · ' + j.error : ''}</small>
+    </div>`;
+    // 展开区：仅选中项渲染
+    if (expanded) {
+      if (j.status === 'running' || j.status === 'queued') {
+        body += `<div style="margin-top:8px"><button class="btn small" onclick="cancelJob('${j.id}')">取消</button></div>`;
+      }
+      if (j.status === 'done' && j.output) {
+        const rel = j.output.split('outputs/').pop();
+        body += `<video class="result" controls preload="metadata" src="outputs/${rel}"></video>
+          <a href="outputs/${rel}" download>下载视频</a>` +
+          (j.srt ? `<a href="outputs/${rel.replace(/\.mp4$/, '.srt')}">字幕</a>` : '');
+      }
+      if (j.status !== 'done' && j.error) {
+        body += `<div class="txt" style="margin-top:8px">${j.error}</div>`;
+      }
     }
     el.innerHTML = body;
     box.appendChild(el);
   }
   return jobs;
 }
+function toggleJob(id) {
+  expandedJobId = expandedJobId === id ? null : id;
+  refreshJobs();
+}
+window.toggleJob = toggleJob;
 async function cancelJob(id) {
   try {
     await api(`api/jobs/${id}/cancel`, { method: 'POST' });
