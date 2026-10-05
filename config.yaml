@@ -13,6 +13,11 @@ visual:
   assets_dir: assets/loops
   default_theme: night
 
+stt:
+  name: faster_whisper      # faster_whisper
+  model_size: base          # tiny/base/small/medium/large-v3
+  language: zh
+
 composer:
   name: ffmpeg
   bgm: null             # BGM 音频路径，null 不加

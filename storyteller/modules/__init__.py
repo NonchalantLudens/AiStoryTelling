@@ -1,2 +1,2 @@
 """导入即注册所有内置适配器。"""
-from . import composer, tts, visual  # noqa: F401
+from . import composer, stt, tts, visual  # noqa: F401

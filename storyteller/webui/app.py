@@ -1,5 +1,6 @@
-"""FastAPI 后端：任务、分步预览、素材管理、静态与产物下载。"""
+"""FastAPI 后端：任务、分步预览、素材管理、媒体提取、静态与产物下载。"""
 import re
+import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -11,6 +12,7 @@ from ..core.adapters import available, create
 from ..core.jobs import JobManager
 from ..core.preview import PreviewManager
 from ..core.split import split_text
+from ..core.stt_jobs import STTJobManager
 
 STATIC_DIR = Path(__file__).parent / "static"
 _MEDIA_EXTS = (".mp4", ".png", ".jpg", ".jpeg")
@@ -65,10 +67,18 @@ def _safe_theme(theme: str) -> str:
     return theme
 
 
-def create_app(config: dict, outputs_dir: Path) -> FastAPI:
+def create_app(
+    config: dict,
+    outputs_dir: Path,
+    stt_transcribe_fn=None,
+) -> FastAPI:
     app = FastAPI(title="Storyteller")
     manager = JobManager(config, Path(outputs_dir))
     app.state.manager = manager
+    stt_manager = STTJobManager(
+        config, Path(outputs_dir), manager, transcribe_fn=stt_transcribe_fn
+    )
+    app.state.stt_manager = stt_manager
     preview = PreviewManager(config, Path(outputs_dir) / "_preview")
     app.state.preview = preview
 
@@ -99,6 +109,36 @@ def create_app(config: dict, outputs_dir: Path) -> FastAPI:
     @app.post("/api/jobs/{job_id}/cancel")
     def cancel_job(job_id: str):
         if not manager.cancel(job_id):
+            raise HTTPException(400, "任务不存在或当前状态不可取消")
+        return {"ok": True}
+
+    # ---- 媒体提取（STT） ----
+    @app.post("/api/stt/upload")
+    async def stt_upload(
+        files: list[UploadFile] = File(...),
+        auto_generate: bool = Form(True),
+    ):
+        upload_dir = Path(outputs_dir) / "stt_uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        ids = []
+        for f in files:
+            name = _safe_name(f.filename or "media.mp4")
+            saved = upload_dir / f"{uuid.uuid4().hex[:8]}_{name}"
+            with open(saved, "wb") as out:
+                out.write(await f.read())
+            ids.append({
+                "stt_job_id": stt_manager.submit(saved, name, auto_generate=auto_generate),
+                "filename": name,
+            })
+        return {"jobs": ids}
+
+    @app.get("/api/stt/jobs")
+    def stt_jobs():
+        return stt_manager.list_jobs()
+
+    @app.post("/api/stt/jobs/{job_id}/cancel")
+    def stt_cancel(job_id: str):
+        if not stt_manager.cancel(job_id):
             raise HTTPException(400, "任务不存在或当前状态不可取消")
         return {"ok": True}
 

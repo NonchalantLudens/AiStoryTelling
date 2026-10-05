@@ -158,6 +158,55 @@ def test_cancel_endpoint(client):
     assert job["status"] in ("cancelled", "done")
 
 
+def test_stt_upload_and_auto_generate(tmp_path):
+    import time
+
+    def fake_transcribe(path):
+        return f"转写：{path.name}"
+
+    config = {
+        "tts": {"name": "stub_tts"},
+        "visual": {
+            "name": "loop_video",
+            "assets_dir": tmp_path / "loops",
+            "default_theme": "night",
+        },
+        "composer": {"name": "ffmpeg"},
+        "output": {"width": 1280, "height": 720, "fps": 30, "dir": "outputs"},
+    }
+    (tmp_path / "loops" / "night").mkdir(parents=True)
+    (tmp_path / "loops" / "night" / "a.mp4").write_bytes(b"stub")
+    c = TestClient(create_app(config, tmp_path, stt_transcribe_fn=fake_transcribe))
+
+    r = c.post(
+        "/api/stt/upload",
+        data={"auto_generate": "true"},
+        files=[
+            ("files", ("one.mp4", b"media1", "video/mp4")),
+            ("files", ("two.mp3", b"media2", "audio/mpeg")),
+        ],
+    )
+    assert r.status_code == 200
+    ids = [x["stt_job_id"] for x in r.json()["jobs"]]
+    assert len(ids) == 2
+    deadline = time.time() + 10
+    jobs = []
+    while time.time() < deadline:
+        jobs = c.get("/api/stt/jobs").json()
+        if all(j["status"] in ("done", "failed") for j in jobs):
+            break
+        time.sleep(0.05)
+    assert all(j["status"] == "done" for j in jobs)
+    assert {j["gen_job_id"] for j in jobs} and all(j["gen_job_id"] for j in jobs)
+    # 每个文件一个独立生成任务
+    video_ids = {j["gen_job_id"] for j in jobs}
+    assert len(video_ids) == 2
+    # 生成任务用的是转写文本
+    for j in jobs:
+        vj = c.get(f"/api/jobs/{j['gen_job_id']}").json()
+        assert vj["status"] in ("done", "failed", "queued", "running")
+
+
 def test_upload_asset(client):
     r = client.post(
         "/api/assets/upload",
