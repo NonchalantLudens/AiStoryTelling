@@ -16,7 +16,6 @@
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 14px;
   }
-  /* 顶栏 */
   header {
     position: sticky; top: 0; z-index: 10; display: flex; align-items: center;
     gap: 16px; padding: 12px 24px; background: rgba(15,17,23,.92);
@@ -33,7 +32,6 @@
   .btn:hover { filter: brightness(1.12); }
   .btn:disabled { opacity: .5; cursor: default; }
   main { max-width: 980px; margin: 0 auto; padding: 20px 24px 80px; }
-  /* 步骤卡片 */
   .step {
     background: var(--panel); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 18px 20px; margin-bottom: 16px;
@@ -50,7 +48,7 @@
   .step h2 .hint { color: var(--dim); font-size: 12px; font-weight: 400; margin-left: auto; }
   label.f { display: block; font-size: 12px; color: var(--dim); margin: 10px 0 4px; }
   textarea {
-    width: 100%; min-height: 180px; background: var(--panel2); color: var(--text);
+    width: 100%; min-height: 170px; background: var(--panel2); color: var(--text);
     border: 1px solid var(--border); border-radius: 9px; padding: 12px;
     font-size: 14px; line-height: 1.7; resize: vertical;
   }
@@ -62,16 +60,22 @@
   .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   .row > div { flex: 1; min-width: 160px; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
+  details.segbox { margin-top: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel2); }
+  details.segbox summary {
+    cursor: pointer; padding: 10px 14px; font-size: 13px; color: var(--text);
+    user-select: none; display: flex; align-items: center; gap: 8px;
+  }
+  details.segbox summary .cnt { color: var(--accent); font-weight: 700; }
+  details.segbox .inner { padding: 4px 14px 14px; }
   .seg {
     display: flex; align-items: center; gap: 10px; padding: 8px 12px;
-    background: var(--panel2); border: 1px solid var(--border);
+    background: var(--panel); border: 1px solid var(--border);
     border-radius: 9px; margin-top: 8px;
   }
   .seg .idx { color: var(--accent); font-weight: 700; font-size: 12px; flex: none; }
   .seg .txt { flex: 1; line-height: 1.5; }
   .seg .dur { color: var(--dim); font-size: 12px; flex: none; }
   audio { height: 32px; flex: none; }
-  /* 主题卡片 */
   .themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
   .theme {
     border: 2px solid var(--border); border-radius: 10px; overflow: hidden;
@@ -79,11 +83,10 @@
   }
   .theme.sel { border-color: var(--accent); }
   .theme video { width: 100%; height: 110px; object-fit: cover; display: block; filter: brightness(.85); }
-  .theme .name {
-    padding: 7px 10px; font-size: 13px; display: flex; justify-content: space-between;
-  }
+  .theme .name { padding: 7px 10px; font-size: 13px; display: flex; justify-content: space-between; }
   .theme .name small { color: var(--dim); }
-  .upload { margin-top: 12px; display: flex; gap: 10px; align-items: center; color: var(--dim); font-size: 12px; }
+  .upload { margin-top: 12px; display: flex; gap: 10px; align-items: center; color: var(--dim); font-size: 12px; flex-wrap: wrap; }
+  .checkbox { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--dim); }
   .jobs { margin-top: 8px; }
   .job {
     background: var(--panel2); border: 1px solid var(--border);
@@ -91,13 +94,13 @@
   }
   .badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; margin-left: 8px; }
   .badge.done { background: var(--ok); color: #08130c; }
-  .badge.failed { background: var(--err); color: #fff; }
+  .badge.failed, .badge.cancelled, .badge.interrupted { background: var(--err); color: #fff; }
   .badge.running { background: var(--warn); color: #241a00; }
   .badge.queued { background: var(--border); color: var(--dim); }
   .bar { height: 5px; background: var(--border); border-radius: 4px; margin: 8px 0 6px; overflow: hidden; }
   .bar > div { height: 100%; background: var(--accent); transition: width .4s; }
   small { color: var(--dim); }
-  video.result { width: 100%; max-width: 640px; border-radius: 9px; margin-top: 10px; display: block; }
+  video.result, video.sample { width: 100%; max-width: 640px; border-radius: 9px; margin-top: 10px; display: block; }
   a { color: var(--accent); text-decoration: none; margin-right: 12px; font-size: 13px; }
   #toast {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -115,17 +118,18 @@
 <main>
 
   <section class="step">
-    <h2><span class="no">1</span>故事文本 <span class="hint">空行分段，每段一次画面切换</span></h2>
+    <h2><span class="no">1</span>故事文本
+      <span class="hint">空行分段；是否按段切换画面在第 3 步选</span></h2>
     <textarea id="story" placeholder="在这里粘贴故事……"></textarea>
     <div class="row" style="margin-top:10px">
-      <button class="btn small" id="btnSplit">预览切分</button>
+      <button class="btn small" id="btnLoad">① 载入并切分</button>
       <small id="segInfo"></small>
     </div>
-    <div id="segments"></div>
   </section>
 
   <section class="step">
-    <h2><span class="no">2</span>配音 <span class="hint">逐段试听，调好音色与语速</span></h2>
+    <h2><span class="no">2</span>配音
+      <span class="hint">先调引擎/音色/语速，再逐段试听</span></h2>
     <div class="row">
       <div>
         <label class="f">引擎</label>
@@ -151,11 +155,27 @@
       <div><label class="f">参考音频路径</label><input type="text" id="refAudio" placeholder="/path/to/ref.wav"></div>
       <div><label class="f">参考音频文本</label><input type="text" id="promptText" placeholder="参考音频说的话"></div>
     </div>
+
+    <details class="segbox" id="segBox">
+      <summary>分段预览与试听 <span class="cnt" id="segCnt">0</span>
+        <span style="margin-left:auto; display:flex; gap:8px" onclick="event.preventDefault()">
+          <button class="btn small" id="btnSplit">切分</button>
+          <button class="btn small" id="btnHearAll">② 全部试听</button>
+        </span>
+      </summary>
+      <div class="inner" id="segments"><small>先在第 1 步载入文本。</small></div>
+    </details>
   </section>
 
   <section class="step">
-    <h2><span class="no">3</span>画面主题 <span class="hint">循环氛围视频，自动压暗</span></h2>
+    <h2><span class="no">3</span>画面
+      <span class="hint">循环氛围视频，自动压暗</span></h2>
     <div class="themes" id="themes"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn small" id="btnSample">③ 生成画面样片（3s）</button>
+      <label class="checkbox"><input type="checkbox" id="perSeg"> 每段切换画面（默认整片一块连续背景）</label>
+    </div>
+    <video class="sample" id="sample" controls style="display:none"></video>
     <div class="upload">
       添加自己的素材：
       <input type="text" id="upTheme" placeholder="主题名，如 rain" style="width:140px">
@@ -165,20 +185,22 @@
   </section>
 
   <section class="step">
-    <h2><span class="no">4</span>合成 <span class="hint">用当前各步配置出片</span></h2>
+    <h2><span class="no">4</span>合成
+      <span class="hint">用当前各步配置出片</span></h2>
     <div class="row">
       <div><label class="f">BGM 音频路径（可选）</label><input type="text" id="bgm" placeholder="music.mp3"></div>
       <div style="flex:0; display:flex; align-items:flex-end; padding-bottom:6px">
         <label><input type="checkbox" id="srt" checked> 生成字幕</label>
       </div>
       <div style="flex:0; display:flex; align-items:flex-end; padding-bottom:2px">
-        <button class="btn primary" id="btnCompose">生成完整视频</button>
+        <button class="btn primary" id="btnCompose">④ 生成完整视频</button>
       </div>
     </div>
   </section>
 
   <section class="step">
-    <h2><span class="no">✓</span>任务 <span class="hint">完成后在线预览</span></h2>
+    <h2><span class="no">✓</span>任务
+      <span class="hint">按提交顺序执行，可取消</span></h2>
     <div class="jobs" id="jobs"><small>还没有任务。</small></div>
   </section>
 
@@ -187,7 +209,7 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const state = { segments: [], durations: {}, themes: {}, defaultTheme: null };
+const state = { segments: [], durations: {}, defaultTheme: null };
 
 function toast(msg) {
   const t = $('toast'); t.textContent = msg; t.style.display = 'block';
@@ -199,26 +221,32 @@ async function api(url, opts) {
   return r.json();
 }
 
-/* ---- 步骤 1：切分 ---- */
-$('btnSplit').onclick = async () => {
+/* ---- 步骤 1：载入切分 ---- */
+async function loadText() {
   const text = $('story').value;
   if (!text.trim()) return toast('请先粘贴故事文本');
   const d = await api('api/preview/split', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text})
   });
   state.segments = d.segments;
-  $('segInfo').textContent = `共 ${d.segments.length} 段`;
+  state.durations = {};
+  $('segCnt').textContent = d.segments.length + ' 段';
+  $('segInfo').textContent = `已载入 ${d.segments.length} 段`;
   renderSegments();
-};
+  $('segBox').open = true;
+}
+$('btnLoad').onclick = () => loadText().catch(e => toast(e.message));
+$('btnSplit').onclick = () => loadText().catch(e => toast(e.message));
+
 function renderSegments() {
-  $('segments').innerHTML = state.segments.map((s, i) => `
+  $('segments').innerHTML = state.segments.length ? state.segments.map((s, i) => `
     <div class="seg">
       <span class="idx">${String(i+1).padStart(2,'0')}</span>
       <span class="txt">${s}</span>
       <span class="dur" id="dur-${i}">${state.durations[i] ? state.durations[i].toFixed(1) + 's' : ''}</span>
       <audio id="au-${i}" controls style="display:none"></audio>
       <button class="btn small" id="btn-${i}" onclick="previewSeg(${i})">▶ 试听</button>
-    </div>`).join('');
+    </div>`).join('') : '<small>先在第 1 步载入文本。</small>';
 }
 async function previewSeg(i) {
   const btn = $('btn-' + i);
@@ -230,13 +258,22 @@ async function previewSeg(i) {
     });
     state.durations[i] = d.duration;
     const au = $('au-' + i);
-    au.src = d.url.replace(/^\//, ""); au.style.display = 'block'; au.play();
+    au.src = d.url.replace(/^\//, ''); au.style.display = 'block'; au.play();
     $('dur-' + i).textContent = d.duration.toFixed(1) + 's';
     btn.textContent = '▶ 重听';
   } catch (e) { toast('试听失败：' + e.message); btn.textContent = '▶ 试听'; }
   btn.disabled = false;
 }
 window.previewSeg = previewSeg;
+
+async function hearAll() {
+  if (!state.segments.length) { await loadText(); }
+  for (let i = 0; i < state.segments.length; i++) {
+    await previewSeg(i);
+    if (i < state.segments.length - 1) await new Promise(r => setTimeout(r, 400));
+  }
+}
+$('btnHearAll').onclick = () => hearAll().catch(e => toast(e.message));
 
 /* ---- 步骤 2：配音配置 ---- */
 async function initEngines() {
@@ -267,10 +304,9 @@ $('rate').oninput = () => {
   $('rateVal').textContent = (v >= 0 ? '+' : '') + v + '%';
 };
 
-/* ---- 步骤 3：画面主题 ---- */
+/* ---- 步骤 3：画面 ---- */
 async function initThemes() {
   const assets = await api('api/assets');
-  state.themes = assets;
   const def = (await api('api/themes')).default;
   state.defaultTheme = def;
   const names = Object.keys(assets);
@@ -291,6 +327,19 @@ function currentTheme() {
   const sel = document.querySelector('.theme.sel');
   return sel ? sel.dataset.t : state.defaultTheme;
 }
+$('btnSample').onclick = async () => {
+  const btn = $('btnSample');
+  btn.disabled = true; btn.textContent = '生成中…';
+  try {
+    const d = await api('api/preview/visual', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ theme: currentTheme(), duration: 3.0 })
+    });
+    const v = $('sample');
+    v.src = d.url.replace(/^\//, ''); v.style.display = 'block'; v.play();
+  } catch (e) { toast('样片失败：' + e.message); }
+  btn.disabled = false; btn.textContent = '③ 生成画面样片（3s）';
+};
 $('btnUpload').onclick = async () => {
   const theme = $('upTheme').value.trim();
   const file = $('upFile').files[0];
@@ -305,11 +354,15 @@ $('btnUpload').onclick = async () => {
 
 /* ---- 步骤 4 / 一键生成 ---- */
 function overrides() {
-  const o = { theme: currentTheme(), ...ttsPayload() };
-  // 与 PipelineOptions 字段对齐：引擎名与参数分开放
-  const payload = { theme: o.theme, tts_name: o.engine, tts_opts: {} };
+  const p = ttsPayload();
+  const payload = {
+    theme: currentTheme(),
+    per_segment_visual: $('perSeg').checked,
+    tts_name: p.engine,
+    tts_opts: {},
+  };
   for (const k of ['voice', 'rate', 'ref_audio_path', 'prompt_text']) {
-    if (o[k] !== undefined) payload.tts_opts[k] = o[k];
+    if (p[k] !== undefined) payload.tts_opts[k] = p[k];
   }
   payload.embed_srt = $('srt').checked;
   const bgm = $('bgm').value.trim();
@@ -346,6 +399,9 @@ async function refreshJobs() {
       <small style="float:right">${j.created_at || ''}</small>
       <div class="bar"><div style="width:${pct}%"></div></div>
       <small>${j.stage || ''} ${j.error ? ' · ' + j.error : ''}</small>`;
+    if (j.status === 'running' || j.status === 'queued') {
+      body += `<div style="margin-top:8px"><button class="btn small" onclick="cancelJob('${j.id}')">取消</button></div>`;
+    }
     if (j.status === 'done' && j.output) {
       const rel = j.output.split('outputs/').pop();
       body += `<video class="result" controls preload="metadata" src="outputs/${rel}"></video>
@@ -357,6 +413,13 @@ async function refreshJobs() {
   }
   return jobs;
 }
+async function cancelJob(id) {
+  try {
+    await api(`api/jobs/${id}/cancel`, { method: 'POST' });
+    refreshJobs();
+  } catch (e) { toast('取消失败：' + e.message); }
+}
+window.cancelJob = cancelJob;
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(async () => {

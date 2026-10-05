@@ -34,6 +34,11 @@ class TTSPreviewRequest(BaseModel):
     prompt_text: str | None = None
 
 
+class VisualPreviewRequest(BaseModel):
+    theme: str
+    duration: float = 3.0
+
+
 def _with_srt(job: dict) -> dict:
     """补充 srt 字段：存在才给路径，避免前端下载到 404 JSON。"""
     data = dict(job)
@@ -91,6 +96,12 @@ def create_app(config: dict, outputs_dir: Path) -> FastAPI:
         except KeyError:
             raise HTTPException(404, "任务不存在")
 
+    @app.post("/api/jobs/{job_id}/cancel")
+    def cancel_job(job_id: str):
+        if not manager.cancel(job_id):
+            raise HTTPException(400, "任务不存在或当前状态不可取消")
+        return {"ok": True}
+
     # ---- 分步预览 ----
     @app.get("/api/engines")
     def engines():
@@ -116,6 +127,14 @@ def create_app(config: dict, outputs_dir: Path) -> FastAPI:
         try:
             path, duration = preview.tts(req.text, req.engine, opts)
         except ValueError as exc:
+            raise HTTPException(400, str(exc))
+        return {"url": f"/preview/{path.name}", "duration": duration}
+
+    @app.post("/api/preview/visual")
+    def preview_visual(req: VisualPreviewRequest):
+        try:
+            path, duration = preview.visual(req.theme, req.duration)
+        except (ValueError, RuntimeError) as exc:
             raise HTTPException(400, str(exc))
         return {"url": f"/preview/{path.name}", "duration": duration}
 

@@ -1,6 +1,8 @@
 import time
 
 import pytest
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 from storyteller.core import adapters
@@ -105,6 +107,55 @@ def test_preview_tts_and_cache(client):
 
 def test_preview_tts_empty_text(client):
     assert client.post("/api/preview/tts", json={"text": " "}).status_code == 400
+
+
+def test_preview_visual(tmp_path):
+    from storyteller.core import adapters as _adapters
+
+    class FakeVis:
+        name = "fake_vis"
+
+        def __init__(self, **opts):
+            self.opts = opts
+
+        def themes(self):
+            return []
+
+        def resolve(self, theme, duration, out_path):
+            out_path.write_text("mp4")
+            return out_path
+
+    _adapters.register("visual", "fake_vis", FakeVis)
+    config = {
+        "tts": {"name": "stub_tts"},
+        "visual": {
+            "name": "fake_vis",
+            "assets_dir": tmp_path / "loops",
+            "default_theme": "campfire",
+        },
+        "composer": {"name": "ffmpeg"},
+        "output": {"width": 1280, "height": 720, "fps": 30, "dir": "outputs"},
+    }
+    # stub 产物不是真视频，mock ffprobe 探测
+    with patch("storyteller.core.preview.probe_duration", return_value=3.0):
+        c = TestClient(create_app(config, tmp_path))
+        r = c.post("/api/preview/visual", json={"theme": "campfire", "duration": 3.0})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["url"].startswith("/preview/") and data["duration"] > 0
+        # 缓存命中
+        r2 = c.post("/api/preview/visual", json={"theme": "campfire", "duration": 3.0})
+        assert r2.json()["url"] == data["url"]
+
+
+def test_cancel_endpoint(client):
+    assert client.post("/api/jobs/nope/cancel").status_code == 400
+    jid = client.post("/api/jobs", json={"text": "x"}).json()["id"]
+    r = client.post(f"/api/jobs/{jid}/cancel")
+    assert r.status_code == 200
+    # 排队时取消：终态为 cancelled（worker 可能尚未取件）
+    job = client.get(f"/api/jobs/{jid}").json()
+    assert job["status"] in ("cancelled", "done")
 
 
 def test_upload_asset(client):
