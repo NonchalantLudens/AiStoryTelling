@@ -1,0 +1,119 @@
+# TXTForMac 演示视频分镜脚本
+# 每段 = 操作序列（record.py 执行）+ 中英解说词（build_video.py 配音与字幕）
+
+app: /Applications/TXTForMac.app
+window_owner: TXTForMac          # AppleScript 读取窗口尺寸用的进程名
+demo_root: ~/Desktop/TXTForMacDemo
+output_size: [1920, 1080]
+
+segments:
+  - id: 01-intro
+    title: 开场
+    actions:
+      - {do: quit_app}                     # 清场：退出 app（清掉上轮会话残留）
+      - {do: launch}                       # 打开并前置 app
+      - {do: wait, seconds: 2.0}
+    narration:
+      zh: TXTForMac，一款为 macOS 打造的轻量纯文本编辑器。
+      en: TXT For Mac — a lightweight plain text editor built for macOS.
+
+  - id: 02-tabs
+    title: 多标签
+    actions:
+      - {do: activate}                     # 确保键盘事件送达 app
+      - {do: wait, seconds: 0.4}
+      - {do: key, combo: "cmd+shift+w"}    # 清场：关闭全部窗口
+      - {do: wait, seconds: 0.8}
+      - {do: open_files, files: ["tabs/第一章-启程.txt", "tabs/第二章-溪谷.txt", "tabs/第三章-星空.txt"]}
+      - {do: wait, seconds: 1.2}
+      - {do: key, combo: "cmd+shift+]"}    # 下一个标签
+      - {do: wait, seconds: 0.9}
+      - {do: key, combo: "cmd+shift+]"}
+      - {do: wait, seconds: 0.9}
+      - {do: key, combo: "cmd+shift+["}    # 上一个标签
+      - {do: wait, seconds: 0.8}
+      - {do: key, combo: "cmd+w"}          # 关闭当前标签
+      - {do: wait, seconds: 0.8}
+    narration:
+      zh: 一次打开多个文件，多标签自由切换；按下 Command W，即可关闭当前标签。
+      en: Open multiple files at once and switch between tabs freely. Press Command W to close the current tab.
+
+  - id: 03-find-replace
+    title: 查找替换（正则）
+    actions:
+      - {do: activate}                     # 确保键盘事件送达 app
+      - {do: wait, seconds: 0.4}
+      - {do: key, combo: "cmd+shift+w"}    # 清场：关闭全部窗口
+      - {do: wait, seconds: 0.8}
+      - {do: open_files, files: ["regex-demo.txt"]}
+      - {do: wait, seconds: 0.9}
+      - {do: key, combo: "cmd+f"}          # 打开查找栏
+      - {do: wait, seconds: 0.5}
+      - {do: type, text: "第 (\\d+) 天"}   # 正则模式
+      - {do: wait, seconds: 1.1}
+      - {do: key, combo: "return"}         # 查找下一个，展示高亮
+      - {do: wait, seconds: 0.8}
+      - {do: key, combo: "return"}
+      - {do: wait, seconds: 1.1}
+      - {do: menu, app: TXTForMac, path: ["查找", "替换"]}   # 失败自动退回 cmd+alt+f
+      - {do: wait, seconds: 0.8}
+      - {do: type, text: "DAY $1"}         # 替换为（展示捕获组）
+      - {do: wait, seconds: 1.4}
+    narration:
+      zh: 内置查找替换，支持正则表达式——输入模式，所有匹配瞬间高亮。
+      en: Built-in find and replace with regular expressions — type a pattern and every match lights up.
+
+  - id: 04-encoding
+    title: 编码识别
+    actions:
+      - {do: activate}                     # 确保键盘事件送达 app
+      - {do: wait, seconds: 0.4}
+      - {do: key, combo: "cmd+shift+w"}    # 清场：关闭全部窗口
+      - {do: wait, seconds: 0.8}
+      - {do: open_files, files: ["gbk-legacy.txt"]}
+      - {do: wait, seconds: 1.8}
+    narration:
+      zh: 智能编码识别，GBK 等旧编码文件也能正确显示，告别乱码。
+      en: Smart encoding detection — legacy files in GBK display correctly, no more garbled text.
+
+  - id: 05-finder
+    title: Finder 右键新建
+    rect_owner: Finder
+    actions:
+      - {do: finder_reveal, rel: "."}      # 打开演示根目录（列表视图，含 finder 文件夹）
+      - {do: wait, seconds: 1.2}
+      - {do: finder_select, filename: "finder", kind: folder}
+      - {do: wait, seconds: 0.5}
+      - {do: py_rightclick_row, hold: 1.0} # 真实右键文件夹行，菜单保持打开
+      - {do: wait, seconds: 1.4}           # 展示右键菜单
+      - {do: py_service_navigate}          # ↑服务 → → 展开子菜单 → ↓至「TXTForMac: New Text File Here」高亮
+      - {do: wait, seconds: 3.0}           # 停留展示功能入口
+      - {do: key, combo: "esc"}            # 收起菜单
+      - {do: wait, seconds: 1.2}
+    narration:
+      zh: 在 Finder 里右键，一键新建文本文件，创作从未如此顺手。
+      en: Right click in Finder to create a new text file instantly.
+
+  - id: 06-settings
+    title: 设置页
+    actions:
+      - {do: activate}
+      - {do: wait, seconds: 0.4}
+      - {do: key, combo: "cmd+,"}          # 打开设置
+      - {do: wait, seconds: 1.5}
+      - {do: scroll, times: 4}             # 向下滚动展示分区
+      - {do: wait, seconds: 1.5}
+      - {do: key, combo: "cmd+w"}          # 关闭设置
+      - {do: wait, seconds: 0.6}
+    narration:
+      zh: 丰富的设置项，主题、语言、启动行为，随你所好。
+      en: Rich preferences — themes, language, and launch behavior, all yours to tune.
+
+  - id: 07-outro
+    title: 结尾
+    actions:
+      - {do: activate}
+      - {do: wait, seconds: 2.5}
+    narration:
+      zh: 轻量、快速、忠实还原经典记事本体验。TXTForMac，让纯文本回归纯粹。
+      en: Light, fast, and faithful to the classic Notepad feel. TXT For Mac keeps plain text pure.
