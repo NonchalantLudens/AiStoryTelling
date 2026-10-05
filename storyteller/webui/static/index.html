@@ -57,6 +57,7 @@
     border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px;
   }
   input[type=text] { width: 100%; }
+  textarea.drag { border-color: var(--accent); }
   .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   .row > div { flex: 1; min-width: 160px; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
@@ -104,10 +105,13 @@
   }
   .sttjob .txt.open { display: block; }
   .jobs { margin-top: 8px; }
-  .section-title {
-    color: var(--dim); font-size: 12px; font-weight: 600;
-    margin: 12px 0 8px; text-transform: uppercase; letter-spacing: .05em;
+  .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .tab {
+    background: var(--panel2); color: var(--dim); border: 1px solid var(--border);
+    border-radius: 99px; padding: 6px 16px; font-size: 13px; cursor: pointer; font-weight: 600;
   }
+  .tab.sel { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tab span { opacity: .8; }
   .del { color: var(--dim); cursor: pointer; margin-left: 8px; font-size: 12px; }
   .del:hover { color: var(--err); }
   .chips { padding: 0 10px 8px; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -230,6 +234,10 @@
   <section class="step">
     <h2><span class="no">✓</span>任务
       <span class="hint">按提交顺序执行，可取消</span></h2>
+    <div class="tabs">
+      <button class="tab sel" id="tabActive" onclick="setJobsTab('active')">未完成 <span id="cntActive">0</span></button>
+      <button class="tab" id="tabDone" onclick="setJobsTab('done')">已完成 <span id="cntDone">0</span></button>
+    </div>
     <div class="jobs" id="jobs"><small>还没有任务。</small></div>
   </section>
 
@@ -454,23 +462,25 @@ $('runAll').onclick = submitJob;
 /* ---- 任务列表（手风琴：只展开选中的一项） ---- */
 let pollTimer = null;
 let expandedJobId = null;
+let jobsTab = 'active';
+function setJobsTab(t) {
+  jobsTab = t;
+  document.getElementById('tabActive').classList.toggle('sel', t === 'active');
+  document.getElementById('tabDone').classList.toggle('sel', t === 'done');
+  refreshJobs();
+}
+window.setJobsTab = setJobsTab;
 async function refreshJobs() {
   let jobs = [];
   try { jobs = await api('api/jobs'); } catch { return jobs; }
-  const box = $('jobs');
   const active = jobs.filter(j => j.status !== 'done');
   const done = jobs.filter(j => j.status === 'done');
-  box.innerHTML = jobs.length ? '' : '<small>还没有任务。</small>';
-  const section = (title, list) => {
-    if (!list.length) return;
-    const h = document.createElement('div');
-    h.className = 'section-title';
-    h.textContent = title;
-    box.appendChild(h);
-    for (const j of list) box.appendChild(jobCard(j));
-  };
-  section(`未完成（${active.length}）`, active);
-  section(`已完成（${done.length}）`, done);
+  $('cntActive').textContent = active.length;
+  $('cntDone').textContent = done.length;
+  const list = jobsTab === 'active' ? active : done;
+  const box = $('jobs');
+  box.innerHTML = list.length ? '' : `<small>${jobsTab === 'active' ? '没有进行中的任务。' : '还没有已完成的任务。'}</small>`;
+  for (const j of list) box.appendChild(jobCard(j));
   return jobs;
 }
 function jobCard(j) {
@@ -554,6 +564,18 @@ function toggleSttText(id) {
   if (el) el.classList.toggle('open');
 }
 window.toggleSttText = toggleSttText;
+
+/* ---- 文本框拖入 .txt/.md 文件 ---- */
+const storyEl = $('story');
+storyEl.addEventListener('dragover', e => { e.preventDefault(); storyEl.classList.add('drag'); });
+storyEl.addEventListener('dragleave', () => storyEl.classList.remove('drag'));
+storyEl.addEventListener('drop', async e => {
+  e.preventDefault(); e.stopPropagation(); storyEl.classList.remove('drag');
+  const f = [...e.dataTransfer.files].find(f => /\.(txt|md)$/i.test(f.name));
+  if (!f) return;
+  storyEl.value = await f.text();
+  loadText().catch(err => toast(err.message));
+});
 
 async function refreshSttJobs() {
   let jobs = [];
